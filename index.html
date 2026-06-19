@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🔥 DOOM-STYLE: Gay-Invasion 3D</title>
+    <style>
+        * { margin: 0; padding: 0; overflow: hidden; }
+        body { background: #000; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #f0e6ff;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            text-shadow: 0 0 10px rgba(255,59,155,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 10px 18px;
+            border-radius: 12px;
+            border: 1px solid #ff3b9b;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff3b9b;
+            font-size: 30px;
+            pointer-events: none;
+            z-index: 5;
+            text-shadow: 0 0 20px #ff3b9b;
+            opacity: 0.8;
+        }
+        #controls {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .ctrl-btn {
+            pointer-events: auto;
+            background: rgba(255,59,155,0.3);
+            border: 2px solid #ff3b9b;
+            border-radius: 50px;
+            padding: 12px 20px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(255,59,155,0.3);
+            min-width: 80px;
+            text-align: center;
+            touch-action: manipulation;
+        }
+        .ctrl-btn:active { transform: scale(0.9); background: rgba(255,59,155,0.6); }
+        #joystick-area {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50px;
+            background: rgba(255,59,155,0.1);
+            border: 2px solid rgba(255,59,155,0.3);
+            touch-action: none;
+            z-index: 10;
+            backdrop-filter: blur(4px);
+        }
+        #joystick-knob {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: radial-gradient(circle, #ff6bcb, #ff3b9b);
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            box-shadow: 0 0 30px rgba(255,59,155,0.6);
+            pointer-events: none;
+            transition: none;
+        }
+        @media (max-width: 500px) {
+            #ui { font-size: 12px; padding: 6px 12px; bottom: 10px; left: 10px; }
+            .ctrl-btn { padding: 8px 14px; font-size: 14px; min-width: 60px; }
+            #joystick-area { width: 80px; height: 80px; bottom: 80px; left: 10px; }
+            #joystick-knob { width: 32px; height: 32px; top: 24px; left: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    ❤️ <span id="hpDisplay">100</span> | 
+    🛡️ <span id="shieldDisplay">50</span> | 
+    ☕ <span id="coffeeDisplay">3</span> | 
+    🕒 <span id="timeDisplay">3:00</span> | 
+    👾 <span id="killDisplay">0</span>
+</div>
+
+<div id="crosshair">✚</div>
+
+<div id="joystick-area">
+    <div id="joystick-knob"></div>
+</div>
+
+<div id="controls">
+    <div class="ctrl-btn" id="attackBtn">💥 Огонь</div>
+    <div class="ctrl-btn" id="shieldBtn">🛡️ Щит</div>
+    <div class="ctrl-btn" id="healBtn">☕ Хил</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+//  🔥 DOOM-STYLE 3D — GAY-INVASION
+//  Использует Three.js + адаптивное управление
+// ============================================================
+
+// ==================== СЦЕНА ====================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b001a);
+scene.fog = new THREE.Fog(0x0b001a, 20, 60);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.7, 0); // Рост человека
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.prepend(renderer.domElement);
+
+// ==================== СВЕТ ====================
+const ambient = new THREE.AmbientLight(0x222244, 0.3);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xff6bcb, 0.8);
+dirLight.position.set(10, 20, 5);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+const neonLight = new THREE.PointLight(0xff3b9b, 1, 30);
+neonLight.position.set(0, 2, 0);
+scene.add(neonLight);
+
+// Неоновые лампы по уровню
+const lightPositions = [
+    [-8, 2, -8], [8, 2, -8], [-8, 2, 8], [8, 2, 8],
+    [-5, 2, -15], [5, 2, -15]
+];
+lightPositions.forEach(pos => {
+    const light = new THREE.PointLight(0xff3b9b, 0.3, 20);
+    light.position.set(pos[0], pos[1], pos[2]);
+    scene.add(light);
+});
+
+// ==================== ПОЛ ====================
+const gridHelper = new THREE.GridHelper(40, 20, 0xff3b9b, 0x4a1a6a);
+gridHelper.position.y = -0.01;
+scene.add(gridHelper);
+
+// Пол с текстурой (имитация)
+const floorGeo = new THREE.PlaneGeometry(40, 40);
+const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x0b001a,
+    roughness: 0.8,
+    metalness: 0.2,
+    emissive: 0x1a0033,
+    emissiveIntensity: 0.2,
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.01;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ==================== СТЕНЫ ====================
+function createWall(x, z, w, h, color = 0x2a1040) {
+    const geo = new THREE.BoxGeometry(w, h, 1);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.1, emissive: 0x1a0033, emissiveIntensity: 0.1 });
+    const wall = new THREE.Mesh(geo, mat);
+    wall.position.set(x, h/2, z);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    scene.add(wall);
+    return wall;
+}
+
+// Стены по периметру
+const wallPos = [
+    [-19, 0, 40, 4], [19, 0, 40, 4], [0, -19, 40, 4], [0, 19, 40, 4]
+];
+wallPos.forEach(([x, z, w, h]) => createWall(x, z, w, h, 0x1a0033));
+
+// ==================== ДЕКОР ====================
+// Магазин (база)
+const shopMat = new THREE.MeshStandardMaterial({ color: 0x4a1a6a, emissive: 0x6b3b9b, emissiveIntensity: 0.3 });
+const shopCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), shopMat);
+shopCube.position.set(-8, 1, -8);
+shopCube.castShadow = true;
+scene.add(shopCube);
+
+const shopSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.5, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0xff3b9b, emissive: 0xff3b9b, emissiveIntensity: 0.5 })
+);
+shopSign.position.set(-8, 2.2, -8);
+scene.add(shopSign);
+
+// Портал (спавн)
+const portalMat = new THREE.MeshStandardMaterial({
+    color: 0xff3b9b,
+    emissive: 0xff3b9b,
+    emissiveIntensity: 0.8,
+    transparent: true,
+    opacity: 0.6,
+});
+const portalRing = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.2, 16, 32), portalMat);
+portalRing.position.set(8, 1.5, -8);
+portalRing.rotation.x = Math.PI / 2;
+scene.add(portalRing);
+
+const portalGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff3b9b, emissive: 0xff3b9b, emissiveIntensity: 1, transparent: true, opacity: 0.3 })
+);
+portalGlow.position.set(8, 1, -8);
+scene.add(portalGlow);
+
+// ==================== ИГРОК (камера) ====================
+const player = {
+    x: 0, z: 0,
+    angle: 0,
+    hp: 100,
+    maxHp: 100,
+    shield: 50,
+    maxShield: 100,
+    coffee: 3,
+    attackCooldown: 0,
+    invincible: 0,
+    speed: 4,
+};
+
+// ==================== ВРАГИ ====================
+let enemies = [];
+let enemySpawnTimer = 0;
+let enemySpawnInterval = 3;
+let kills = 0;
+let level = 1;
+let gameTime = 0;
+const MAX_TIME = 15 * 60;
+let gameOver = false;
+let win = false;
+
+function spawnEnemy() {
+    if (gameOver) return;
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 3 + Math.random() * 2;
+    const x = 8 + Math.cos(angle) * radius;
+    const z = -8 + Math.sin(angle) * radius;
+    
+    const color = new THREE.Color(`hsl(${300 + Math.random() * 60}, 100%, 60%)`);
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 1.6, 0.6),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 })
+    );
+    body.position.set(x, 0.8, z);
+    body.castShadow = true;
+    scene.add(body);
+
+    const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xffb3e6, emissive: 0xff3b9b, emissiveIntensity: 0.2 })
+    );
+    head.position.set(x, 1.7, z);
+    scene.add(head);
+
+    // Неоновый ореол
+    const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 8, 8),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, transparent: true, opacity: 0.2 })
+    );
+    glow.position.set(x, 0.8, z);
+    scene.add(glow);
+
+    enemies.push({
+        mesh: body,
+        head: head,
+        glow: glow,
+        x, z,
+        hp: 20 + level * 5 + Math.floor(Math.random() * 10),
+        maxHp: 20 + level * 5 + Math.floor(Math.random() * 10),
+        speed: 1.5 + level * 0.2 + Math.random() * 0.5,
+        damage: 5 + level * 2 + Math.floor(Math.random() * 3),
+        attackCooldown: 0,
+    });
+}
+
+// ==================== ЧАСТИЦЫ ====================
+let particles = [];
+
+function spawnParticles(x, y, z, color, count = 12) {
+    for (let i = 0; i < count; i++) {
+        const geo = new THREE.SphereGeometry(0.05 + Math.random() * 0.08, 4, 4);
+        const mat = new THREE.MeshStandardMaterial({
+            color: color,
+            emissive: color,
+            emissiveIntensity: 0.8,
+        });
+        const p = new THREE.Mesh(geo, mat);
+        p.position.set(x, y, z);
+        p.userData = {
+            vx: (Math.random() - 0.5) * 4,
+            vy: Math.random() * 4,
+            vz: (Math.random() - 0.5) * 4,
+            life: 0.5 + Math.random() * 0.5,
+        };
+        scene.add(p);
+        particles.push(p);
+    }
+}
+
+// ==================== УПРАВЛЕНИЕ ====================
+const keys = { w: false, a: false, s: false, d: false };
+let joyX = 0, joyZ = 0;
+let joystickActive = false;
+
+// Джойстик
+const joystickArea = document.getElementById('joystick-area');
+const joystickKnob = document.getElementById('joystick-knob');
+
+joystickArea.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    joystickActive = true;
+    handleJoystick(e);
+});
+joystickArea.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    handleJoystick(e);
+});
+joystickArea.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    joystickActive = false;
+    joyX = 0; joyZ = 0;
+    joystickKnob.style.left = '30px';
+    joystickKnob.style.top = '30px';
+});
+
+function handleJoystick(e) {
+    const touch = e.touches[0];
+    const rect = joystickArea.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    const dx = touch.clientX - cx;
+    const dy = touch.clientY - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const maxDist = rect.width/2 - 20;
+    if (dist > maxDist) {
+        joyX = dx / dist;
+        joyZ = dy / dist;
+    } else {
+        joyX = dx / maxDist;
+        joyZ = dy / maxDist;
+    }
+    const limit = Math.max(1, Math.abs(joyX), Math.abs(joyZ));
+    joyX /= limit;
+    joyZ /= limit;
+    const knobX = 30 + joyX * (rect.width/2 - 25);
+    const knobY = 30 + joyZ * (rect.height/2 - 25);
+    joystickKnob.style.left = knobX + 'px';
+    joystickKnob.style.top = knobY + 'px';
+}
+
+// Клавиатура
+document.addEventListener('keydown', (e) => {
+    if (e.key in keys) keys[e.key] = true;
+    if (e.key === ' ' || e.key === 'e') attack();
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key in keys) keys[e.key] = false;
+});
+
+// Поворот камеры мышью (для ПК)
+let isPointerLocked = false;
+document.addEventListener('click', () => {
+    if (!gameOver && !('ontouchstart' in window)) {
+        renderer.domElement.requestPointerLock?.();
+    }
+});
+document.addEventListener('pointerlockchange', () => {
+    isPointerLocked = document.pointerLockElement === renderer.domElement;
+});
+document.addEventListener('mousemove', (e) => {
+    if (isPointerLocked) {
+        player.angle -= e.movementX * 0.002;
+    }
+});
+
+// Гироскоп (для iPhone)
+if (window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientation', (e) => {
+        if (!joystickActive) {
+            const alpha = e.alpha || 0;
+            const gamma = e.gamma || 0;
+            if (Math.abs(gamma) > 2) {
+                player.angle += gamma * 0.002;
+            }
+        }
+    });
+}
+
+// Кнопки
+document.getElementById('attackBtn').addEventListener('click', attack);
+document.getElementById('attackBtn').addEventListener('touchstart', (e) => { e.preventDefault(); attack(); });
+document.getElementById('shieldBtn').addEventListener('click', shield);
+document.getElementById('shieldBtn').addEventListener('touchstart', (e) => { e.preventDefault(); shield(); });
+document.getElementById('healBtn').addEventListener('click', heal);
+document.getElementById('healBtn').addEventListener('touchstart', (e) => { e.preventDefault(); heal(); });
+
+function attack() {
+    if (gameOver || player.attackCooldown > 0) return;
+    // Ищем ближайшего врага
+    let closest = null;
+    let minDist = 8;
+    for (const e of enemies) {
+        const d = Math.sqrt((player.x - e.x)**2 + (player.z - e.z)**2);
+        if (d < minDist) {
+            minDist = d;
+            closest = e;
+        }
+    }
+    if (closest) {
+        const dmg = 15 + Math.floor(Math.random() * 15) + level * 2;
+        closest.hp -= dmg;
+        spawnParticles(closest.x, 1, closest.z, 0xff3b9b, 15);
+        if (closest.hp <= 0) {
+            scene.remove(closest.mesh);
+            scene.remove(closest.head);
+            scene.remove(closest.glow);
+            enemies = enemies.filter(e => e !== closest);
+            kills++;
+            player.hp = Math.min(player.maxHp, player.hp + 8);
+            if (kills % 3 === 0) {
+                level++;
+                enemySpawnInterval = Math.max(0.8, 3 - level * 0.15);
+                document.getElementById('killDisplay').textContent = kills;
+            }
+        }
+        player.attackCooldown = 0.4;
+    }
+}
+
+function shield() {
+    if (gameOver) return;
+    player.shield = Math.min(player.maxShield, player.shield + 10);
+}
+
+function heal() {
+    if (gameOver) return;
+    if (player.coffee > 0 && player.hp < player.maxHp) {
+        player.hp = Math.min(player.maxHp, player.hp + 25);
+        player.coffee--;
+        spawnParticles(player.x, 1, player.z, 0x6bff8b, 20);
+    }
+}
+
+// ==================== UPDATE ====================
+function update(dt) {
+    if (gameOver) return;
+
+    // Время
+    gameTime += dt;
+    if (gameTime >= MAX_TIME) {
+        gameOver = true;
+        win = true;
+        return;
+    }
+
+    // Движение
+    let mx = 0, mz = 0;
+    if (keys.w) mz -= 1;
+    if (keys.s) mz += 1;
+    if (keys.a) mx -= 1;
+    if (keys.d) mx += 1;
+    if (joystickActive && (Math.abs(joyX) > 0.1 || Math.abs(joyZ) > 0.1)) {
+        mx = joyX;
+        mz = joyZ;
+    }
+    if (mx !== 0 || mz !== 0) {
+        const len = Math.sqrt(mx*mx + mz*mz);
+        mx /= len;
+        mz /= len;
+        const forward = new THREE.Vector3(-Math.sin(player.angle), 0, -Math.cos(player.angle));
+        const right = new THREE.Vector3(Math.cos(player.angle), 0, -Math.sin(player.angle));
+        const move = new THREE.Vector3().addScaledVector(forward, -mz).addScaledVector(right, mx);
+        const speed = player.speed * dt;
+        player.x += move.x * speed;
+        player.z += move.z * speed;
+    }
+
+    // Границы
+    const bound = 18;
+    player.x = Math.max(-bound, Math.min(bound, player.x));
+    player.z = Math.max(-bound, Math.min(bound, player.z));
+
+    // Камера
+    camera.position.set(player.x, 1.7, player.z);
+    camera.rotation.y = player.angle;
+
+    // Кулдауны
+    if (player.attackCooldown > 0) player.attackCooldown -= dt;
+    if (player.invincible > 0) player.invincible -= dt;
+
+    // Восстановление щита
+    if (player.shield < player.maxShield && Math.random() < dt * 0.3) {
+        player.shield = Math.min(player.maxShield, player.shield + 1);
+    }
+
+    // Спавн врагов
+    enemySpawnTimer -= dt;
+    if (enemySpawnTimer <= 0 && enemies.length < 4 + level) {
+        spawnEnemy();
+        enemySpawnTimer = enemySpawnInterval + Math.random() * 1.5;
+    }
+
+    // Движение врагов
+    for (const e of enemies) {
+        const dx = player.x - e.x;
+        const dz = player.z - e.z;
+        const d = Math.sqrt(dx*dx + dz*dz);
+        if (d > 0.5) {
+            const move = e.speed * dt;
+            e.x += (dx / d) * move;
+            e.z += (dz / d) * move;
+        }
+        e.mesh.position.set(e.x, 0.8, e.z);
+        e.head.position.set(e.x, 1.7, e.z);
+        e.glow.position.set(e.x, 0.8, e.z);
+        e.mesh.lookAt(player.x, 0.8, player.z);
+
+        // Атака врага
+        if (d < 1.5 && player.invincible <= 0) {
+            let dmg = e.damage;
+            let blocked = Math.min(player.shield, dmg);
+            player.shield -= blocked;
+            dmg -= blocked;
+            player.hp -= dmg;
+            player.invincible = 0.5;
+            spawnParticles(e.x, 1, e.z, 0xff3b9b, 12);
+            if (player.hp <= 0) {
+                player.hp = 0;
+                gameOver = true;
+                win = false;
+                return;
+            }
+        }
+    }
+
+    // Обновление частиц
+    for (const p of particles) {
+        p.position.x += p.userData.vx * dt;
+        p.position.y += p.userData.vy * dt;
+        p.position.z += p.userData.vz * dt;
+        p.userData.life -= dt;
+        p.scale.setScalar(p.userData.life / 0.5);
+    }
+    particles = particles.filter(p => p.userData.life > 0);
+
+    // Портал анимируется
+    portalRing.rotation.z += dt * 0.5;
+    portalGlow.scale.setScalar(1 + 0.2 * Math.sin(gameTime * 2));
+
+    // Обновление UI
+    document.getElementById('hpDisplay').textContent = Math.floor(player.hp);
+    document.getElementById('shieldDisplay').textContent = Math.floor(player.shield);
+    document.getElementById('coffeeDisplay').textContent = player.coffee;
+    document.getElementById('killDisplay').textContent = kills;
+    const mins = Math.floor(gameTime / 60) + 3;
+    const secs = Math.floor(gameTime % 60);
+    document.getElementById('timeDisplay').textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+}
+
+// ==================== RENDER ====================
+function render() {
+    renderer.render(scene, camera);
+}
+
+// ==================== ЦИКЛ ====================
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+    const dt = Math.min(0.05, (timestamp - (lastTime || timestamp)) / 1000);
+    lastTime = timestamp;
+
+    update(dt);
+    render();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// ==================== СТАРТ ====================
+requestAnimationFrame(gameLoop);
+
+// ==================== RESIZE ====================
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ==================== ОБРАБОТКА GAME OVER ====================
+// Простой рестарт — обновить страницу
+console.log('🔥 DOOM-style Gay-Invasion запущена!');
+</script>
+</body>
+</html>
